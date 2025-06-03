@@ -71,7 +71,79 @@ END //
 DELIMITER ;
 
 -- triggers 
+-- evitar pagos duplicados por el mismo alumnado el mismo dia 
+DELIMITER //
+CREATE TRIGGER trg_prevenir_pago_duplicado
+BEFORE INSERT ON Pagos
+FOR EACH ROW
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM Pagos
+    WHERE alumno_id = alumno_id AND fecha_pago = fecha_pago
+  ) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'El alumno ya ha registrado un pago en esta fecha.';
+  END IF;
+END;
+//
+DELIMITER ;
 
+-- registrar historial de cambio de profesor 
+CREATE TABLE IF NOT EXISTS historial_profesores (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  profesor_id INT,
+  nombre_anterior VARCHAR(100),
+  nombre_nuevo VARCHAR(100),
+  fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+DELIMITER //
+CREATE TRIGGER trg_historial_nombre_profesor
+AFTER UPDATE ON Profesores
+FOR EACH ROW
+BEGIN
+  IF OLD.nombre <> nombre THEN
+    INSERT INTO historial_profesores (profesor_id, nombre_anterior, nombre_nuevo)
+    VALUES (id, nombre, nombre);
+  END IF;
+END;
+//
+DELIMITER ;
+
+-- validar que no se creen horarios en el pasado
+DELIMITER //
+CREATE TRIGGER trg_prevenir_horario_pasado
+BEFORE INSERT ON Horario
+FOR EACH ROW
+BEGIN
+  IF fecha < CURDATE() THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'No se puede asignar un horario en una fecha pasada.';
+  END IF;
+END;
+//
+DELIMITER ;
+
+-- Auditar entregas de practicas 
+CREATE TABLE IF NOT EXISTS auditoria_practicas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  practica_id INT,
+  estado_anterior VARCHAR(50),
+  estado_nuevo VARCHAR(50),
+  fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+DELIMITER //
+CREATE TRIGGER trg_auditar_estado_practica
+AFTER UPDATE ON Practicas
+FOR EACH ROW
+BEGIN
+  IF estado <> estado THEN
+    INSERT INTO auditoria_practicas (practica_id, estado_anterior, estado_nuevo)
+    VALUES (id, estado, estado);
+  END IF;
+END;
+//
+DELIMITER ;
 
 
 
